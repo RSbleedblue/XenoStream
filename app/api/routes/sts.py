@@ -3,6 +3,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from fastapi.concurrency import run_in_threadpool
+from fastapi.responses import FileResponse
 
 from app.api.dependencies import get_stt_engine, get_tts_service
 from app.api.schemas.sts import STSResponse
@@ -15,23 +16,24 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/v1", tags=["sts"], dependencies=[Depends(verify_api_key)])
 
 
-@router.post("/sts", response_model=STSResponse)
-async def speech_to_speech(
-    file: UploadFile = File(...),
-    language: str = Form(default="en"),
-    voice_id: str = Form(...),
-    speed: float = Form(default=1.0, ge=0.5, le=2.0),
-    stt_engine: STTEngine = Depends(get_stt_engine),
-    tts_service: TTSService = Depends(get_tts_service),
-) -> STSResponse:
-    extension = Path(file.filename).suffix.lower() if file.filename else ""
+def _validate_and_read_audio(audio_file: UploadFile) -> tuple[bytes, str]:
+    extension = Path(audio_file.filename).suffix.lower() if audio_file.filename else ""
     if extension not in ALLOWED_AUDIO_EXTENSIONS:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=f"Unsupported audio format. Allowed: {', '.join(sorted(ALLOWED_AUDIO_EXTENSIONS))}",
         )
+    return extension
 
-    audio_bytes = await file.read()
+
+async def _transcribe_and_build_payload(
+    audio_file: UploadFile,
+    language: str,
+    voice_id: str,
+    speed: float,
+    stt_engine: STTEngine,
+) -> tuple[str, SynthesizeRequest]:
+    audio_bytes = await audio_file.read()
     if not audio_bytes:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -61,26 +63,67 @@ async def speech_to_speech(
         voice_id=voice_id,
         speed=speed,
     )
+    return transcribed_text, payload
+
+
+def _handle_tts_error(exc: Exception) -> None:
+    if isinstance(exc, TimeoutError):
+        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(exc)) from exc
+    if isinstance(exc, FileNotFoundError):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    if isinstance(exc, (ValueError, AssertionError)):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
+    logger.exception("Unhandled TTS failure in STS pipeline")
+    raise HTTPException(
+        status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+        detail="Internal synthesis failure",
+    ) from exc
+
+
+@router.post("/sts", response_model=STSResponse)
+async def speech_to_speech(
+    audio_file: UploadFile = File(...),
+    language: str = Form(default="en"),
+    voice_id: str = Form(...),
+    speed: float = Form(default=1.0, ge=0.5, le=2.0),
+    stt_engine: STTEngine = Depends(get_stt_engine),
+    tts_service: TTSService = Depends(get_tts_service),
+) -> STSResponse:
+    _validate_and_read_audio(audio_file)
+
+    transcribed_text, payload = await _transcribe_and_build_payload(
+        audio_file, language, voice_id, speed, stt_engine
+    )
 
     try:
         request_id, out_file = tts_service.synthesize_resilient(payload)
         return STSResponse(
             request_id=request_id,
             transcribed_text=transcribed_text,
-            audio_file=str(out_file),
+            output_file=str(out_file),
             sample_rate=24000,
         )
-    except TimeoutError as exc:
-        raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(exc)) from exc
-    except FileNotFoundError as exc:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
-    except ValueError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-    except AssertionError as exc:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     except Exception as exc:
-        logger.exception("Unhandled TTS failure in STS pipeline")
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Internal synthesis failure",
-        ) from exc
+        _handle_tts_error(exc)
+
+
+@router.post("/sts/file")
+async def speech_to_speech_file(
+    audio_file: UploadFile = File(...),
+    language: str = Form(default="en"),
+    voice_id: str = Form(...),
+    speed: float = Form(default=1.0, ge=0.5, le=2.0),
+    stt_engine: STTEngine = Depends(get_stt_engine),
+    tts_service: TTSService = Depends(get_tts_service),
+) -> FileResponse:
+    _validate_and_read_audio(audio_file)
+
+    _, payload = await _transcribe_and_build_payload(
+        audio_file, language, voice_id, speed, stt_engine
+    )
+
+    try:
+        _, out_file = tts_service.synthesize_resilient(payload)
+        return FileResponse(path=out_file, media_type="audio/wav", filename=out_file.name)
+    except Exception as exc:
+        _handle_tts_error(exc)

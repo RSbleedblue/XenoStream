@@ -36,7 +36,7 @@ def _split_text_for_retry(text: str) -> list[str]:
 def synthesize(payload: SynthesizeRequest, tts_service: TTSService = Depends(get_tts_service)) -> SynthesizeResponse:
     try:
         request_id, out_file = tts_service.synthesize_resilient(payload)
-        return SynthesizeResponse(request_id=request_id, audio_file=str(out_file), sample_rate=24000)
+        return SynthesizeResponse(request_id=request_id, output_file=str(out_file), sample_rate=24000)
     except TimeoutError as exc:
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(exc)) from exc
     except FileNotFoundError as exc:

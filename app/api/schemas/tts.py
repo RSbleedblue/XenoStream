@@ -10,5 +10,5 @@ class SynthesizeRequest(BaseModel):
 
 class SynthesizeResponse(BaseModel):
     request_id: str
-    audio_file: str
+    output_file: str
     sample_rate: int
