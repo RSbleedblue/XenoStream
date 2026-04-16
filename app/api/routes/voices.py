@@ -1,4 +1,6 @@
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+from pathlib import Path
+
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 
 from app.api.dependencies import get_tts_service
 from app.api.schemas.voices import VoiceProfileResponse, VoiceProfilesResponse
@@ -10,12 +12,16 @@ router = APIRouter(prefix="/v1", tags=["voices"], dependencies=[Depends(verify_a
 
 @router.post("/voices", response_model=VoiceProfileResponse)
 async def upload_voice(
+    voice_id: str = Form(...),
     file: UploadFile = File(...),
     tts_service: TTSService = Depends(get_tts_service),
 ) -> VoiceProfileResponse:
     content = await file.read()
+    extension = Path(file.filename).suffix if file.filename else ".wav"
     try:
-        voice_id, file_path = tts_service.upload_voice(filename=file.filename or "voice.wav", content=content)
+        voice_id, file_path = tts_service.upload_voice(
+            voice_id=voice_id, extension=extension, content=content
+        )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     return VoiceProfileResponse(voice_id=voice_id, file_path=str(file_path))

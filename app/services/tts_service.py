@@ -60,8 +60,8 @@ class TTSService:
     def list_voices(self) -> list[tuple[str, Path]]:
         return [(v.voice_id, v.file_path) for v in self.voice_store.list_voices()]
 
-    def upload_voice(self, filename: str, content: bytes) -> tuple[str, Path]:
-        profile = self.voice_store.create(filename=filename, content=content)
+    def upload_voice(self, voice_id: str, extension: str, content: bytes) -> tuple[str, Path]:
+        profile = self.voice_store.create(voice_id=voice_id, extension=extension, content=content)
         return profile.voice_id, profile.file_path
 
     def delete_voice(self, voice_id: str) -> None:
