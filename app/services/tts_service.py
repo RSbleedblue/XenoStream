@@ -1,3 +1,4 @@
+import logging
 from pathlib import Path
 from io import BytesIO
 import re
@@ -9,6 +10,8 @@ import soundfile as sf
 from app.api.schemas.tts import SynthesizeRequest
 from app.services.engine import XTTSEngine
 from app.services.voice_store import VoiceStore
+
+logger = logging.getLogger(__name__)
 
 
 class TTSService:
@@ -34,28 +37,17 @@ class TTSService:
         if len(text) > self.max_text_chars:
             raise ValueError(f"Text exceeds max_text_chars={self.max_text_chars}")
 
-    def resolve_speaker_wav_path(self, payload: SynthesizeRequest) -> str | None:
+    def resolve_speaker_wav_path(self, payload: SynthesizeRequest) -> str:
         if payload.voice_id:
-            return str(self.voice_store.get_path(payload.voice_id))
-        return payload.speaker_wav_path or self.default_speaker_wav_path
-
-    def resolve_speaker(self, payload: SynthesizeRequest, resolved_speaker_wav_path: str | None) -> str | None:
-        speaker = (payload.speaker or "").strip()
-        if speaker.lower() in {"", "string", "null", "none"}:
-            return None
-        if resolved_speaker_wav_path:
-            return None
-        return speaker
-
-    def validate_voice_input(self, speaker: str | None, speaker_wav_path: str | None) -> None:
-        if not speaker and not speaker_wav_path:
-            raise ValueError(
-                "Provide either 'speaker' or 'speaker_wav_path', or set DEFAULT_SPEAKER_WAV_PATH in .env"
-            )
-
-    def list_speakers(self) -> list[str]:
-        self.ensure_ready()
-        return self.engine.list_speakers()
+            path = str(self.voice_store.get_path(payload.voice_id))
+            logger.info("Using voice_id=%s, path=%s", payload.voice_id, path)
+            return path
+        if self.default_speaker_wav_path:
+            logger.info("Using default speaker wav path=%s", self.default_speaker_wav_path)
+            return self.default_speaker_wav_path
+        raise ValueError(
+            "Provide 'voice_id' or set DEFAULT_SPEAKER_WAV_PATH in .env"
+        )
 
     def list_voices(self) -> list[tuple[str, Path]]:
         return [(v.voice_id, v.file_path) for v in self.voice_store.list_voices()]
@@ -69,16 +61,13 @@ class TTSService:
 
     def synthesize(self, payload: SynthesizeRequest) -> tuple[str, Path]:
         self.validate_text_length(payload.text)
-        resolved_speaker_wav_path = self.resolve_speaker_wav_path(payload)
-        resolved_speaker = self.resolve_speaker(payload, resolved_speaker_wav_path)
-        self.validate_voice_input(resolved_speaker, resolved_speaker_wav_path)
+        speaker_wav_path = self.resolve_speaker_wav_path(payload)
         self.ensure_ready()
 
         return self.engine.synthesize_to_file(
             text=payload.text,
             language=payload.language,
-            speaker=resolved_speaker,
-            speaker_wav_path=resolved_speaker_wav_path,
+            speaker_wav_path=speaker_wav_path,
             speed=payload.speed,
         )
 
@@ -93,9 +82,7 @@ class TTSService:
             if len((payload.text or "").strip()) <= 8:
                 raise
 
-        resolved_speaker_wav_path = self.resolve_speaker_wav_path(payload)
-        resolved_speaker = self.resolve_speaker(payload, resolved_speaker_wav_path)
-        self.validate_voice_input(resolved_speaker, resolved_speaker_wav_path)
+        speaker_wav_path = self.resolve_speaker_wav_path(payload)
         self.ensure_ready()
 
         pieces = self._split_for_token_limit(payload.text)
@@ -109,8 +96,7 @@ class TTSService:
             wav_bytes = self.engine.synthesize_to_wav_bytes(
                 text=piece,
                 language=payload.language,
-                speaker=resolved_speaker,
-                speaker_wav_path=resolved_speaker_wav_path,
+                speaker_wav_path=speaker_wav_path,
                 speed=payload.speed,
             )
             arr, sr = sf.read(BytesIO(wav_bytes), dtype="float32")
@@ -186,55 +172,14 @@ class TTSService:
                 out.append(p)
         return out
 
-    def synthesize_chunk_bytes(
-        self,
-        text: str,
-        language: str,
-        speed: float,
-        voice_id: str | None = None,
-        speaker: str | None = None,
-        speaker_wav_path: str | None = None,
-    ) -> bytes:
-        payload = SynthesizeRequest(
-            text=text,
-            language=language,
-            voice_id=voice_id,
-            speaker=speaker,
-            speaker_wav_path=speaker_wav_path,
-            speed=speed,
-        )
-        self.validate_text_length(payload.text)
-        resolved_speaker_wav_path = self.resolve_speaker_wav_path(payload)
-        resolved_speaker = self.resolve_speaker(payload, resolved_speaker_wav_path)
-        self.validate_voice_input(resolved_speaker, resolved_speaker_wav_path)
-        self.ensure_ready()
-        return self.engine.synthesize_to_wav_bytes(
-            text=payload.text,
-            language=payload.language,
-            speaker=resolved_speaker,
-            speaker_wav_path=resolved_speaker_wav_path,
-            speed=payload.speed,
-        )
-
-    def prepare_stream_voice(
-        self,
-        *,
-        voice_id: str | None,
-        speaker: str | None,
-        speaker_wav_path: str | None,
-    ) -> tuple[str | None, str | None]:
+    def prepare_stream_voice(self, *, voice_id: str | None) -> str:
         payload = SynthesizeRequest(
             text="x",
             voice_id=voice_id,
-            speaker=speaker,
-            speaker_wav_path=speaker_wav_path,
             language="en",
             speed=1.0,
         )
-        resolved_speaker_wav_path = self.resolve_speaker_wav_path(payload)
-        resolved_speaker = self.resolve_speaker(payload, resolved_speaker_wav_path)
-        self.validate_voice_input(resolved_speaker, resolved_speaker_wav_path)
-        return resolved_speaker, resolved_speaker_wav_path
+        return self.resolve_speaker_wav_path(payload)
 
     def synthesize_chunk_pcm16_prepared(
         self,
@@ -242,8 +187,7 @@ class TTSService:
         text: str,
         language: str,
         speed: float,
-        speaker: str | None,
-        speaker_wav_path: str | None,
+        speaker_wav_path: str,
     ) -> bytes:
         self.validate_text_length(text)
         self.ensure_ready()
@@ -251,7 +195,5 @@ class TTSService:
             text=text,
             language=language,
             speed=speed,
-            speaker=speaker,
             speaker_wav_path=speaker_wav_path,
-            validate_speaker_wav=False,
         )

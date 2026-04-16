@@ -28,20 +28,11 @@ class XTTSEngine:
             if self._model is None:
                 self._model = TTS(self.settings.model_name).to(self.settings.device)
 
-    def list_speakers(self) -> list[str]:
-        if self._model is None:
-            raise RuntimeError("Model not loaded")
-        speakers = getattr(self._model, "speakers", None)
-        if not speakers:
-            return []
-        return [str(s) for s in speakers]
-
     def synthesize_to_file(
         self,
         text: str,
         language: str,
-        speaker: str | None,
-        speaker_wav_path: str | None,
+        speaker_wav_path: str,
         speed: float,
     ) -> tuple[str, Path]:
         if self._model is None:
@@ -59,9 +50,7 @@ class XTTSEngine:
                 text=text,
                 language=language,
                 speed=speed,
-                speaker=speaker,
                 speaker_wav_path=speaker_wav_path,
-                validate_speaker_wav=True,
             )
             kwargs["file_path"] = str(out_file)
 
@@ -74,8 +63,7 @@ class XTTSEngine:
         self,
         text: str,
         language: str,
-        speaker: str | None,
-        speaker_wav_path: str | None,
+        speaker_wav_path: str,
         speed: float,
     ) -> bytes:
         if self._model is None:
@@ -90,9 +78,7 @@ class XTTSEngine:
                 text=text,
                 language=language,
                 speed=speed,
-                speaker=speaker,
                 speaker_wav_path=speaker_wav_path,
-                validate_speaker_wav=True,
             )
 
             wav = self._model.tts(**kwargs)
@@ -106,10 +92,8 @@ class XTTSEngine:
         self,
         text: str,
         language: str,
-        speaker: str | None,
-        speaker_wav_path: str | None,
+        speaker_wav_path: str,
         speed: float,
-        validate_speaker_wav: bool = True,
     ) -> bytes:
         if self._model is None:
             raise RuntimeError("Model not loaded")
@@ -123,9 +107,7 @@ class XTTSEngine:
                 text=text,
                 language=language,
                 speed=speed,
-                speaker=speaker,
                 speaker_wav_path=speaker_wav_path,
-                validate_speaker_wav=validate_speaker_wav,
             )
             wav = self._model.tts(**kwargs)
             arr = np.asarray(wav, dtype=np.float32)
@@ -141,21 +123,14 @@ class XTTSEngine:
         text: str,
         language: str,
         speed: float,
-        speaker: str | None,
-        speaker_wav_path: str | None,
-        validate_speaker_wav: bool,
+        speaker_wav_path: str,
     ) -> dict[str, object]:
-        kwargs: dict[str, object] = {
+        speaker_path = Path(speaker_wav_path)
+        if not speaker_path.exists() or not speaker_path.is_file():
+            raise FileNotFoundError("speaker_wav_path does not exist or is not a file")
+        return {
             "text": text,
             "language": language,
             "speed": speed,
+            "speaker_wav": speaker_wav_path,
         }
-        if speaker:
-            kwargs["speaker"] = speaker
-        if speaker_wav_path:
-            if validate_speaker_wav:
-                speaker_path = Path(speaker_wav_path)
-                if not speaker_path.exists() or not speaker_path.is_file():
-                    raise FileNotFoundError("speaker_wav_path does not exist or is not a file")
-            kwargs["speaker_wav"] = speaker_wav_path
-        return kwargs

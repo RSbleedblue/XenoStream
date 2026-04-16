@@ -6,7 +6,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse
 
 from app.api.dependencies import get_tts_service
-from app.api.schemas.tts import SpeakersResponse, SynthesizeRequest, SynthesizeResponse
+from app.api.schemas.tts import SynthesizeRequest, SynthesizeResponse
 from app.core.security import verify_api_key
 from app.services.tts_service import TTSService
 
@@ -32,15 +32,6 @@ def _split_text_for_retry(text: str) -> list[str]:
     return out or [txt]
 
 
-@router.get("/speakers", response_model=SpeakersResponse, dependencies=[Depends(verify_api_key)])
-def speakers(tts_service: TTSService = Depends(get_tts_service)) -> SpeakersResponse:
-    try:
-        return SpeakersResponse(speakers=tts_service.list_speakers())
-    except Exception as exc:
-        logger.exception("Failed to list speakers")
-        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Internal failure") from exc
-
-
 @router.post("/tts", response_model=SynthesizeResponse, dependencies=[Depends(verify_api_key)])
 def synthesize(payload: SynthesizeRequest, tts_service: TTSService = Depends(get_tts_service)) -> SynthesizeResponse:
     try:
@@ -49,12 +40,10 @@ def synthesize(payload: SynthesizeRequest, tts_service: TTSService = Depends(get
     except TimeoutError as exc:
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=str(exc)) from exc
     except FileNotFoundError as exc:
-        # voice_id and speaker_wav_path resolution failures map here.
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     except AssertionError as exc:
-        # XTTS raises AssertionError for model limits like gpt_max_text_tokens.
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
     except Exception as exc:
         logger.exception("Unhandled TTS failure")
@@ -109,8 +98,6 @@ async def stream_tts_socket(
 
     session = {
         "voice_id": None,
-        "speaker": None,
-        "speaker_wav_path": None,
         "language": "en",
         "speed": 1.0,
     }
@@ -123,8 +110,6 @@ async def stream_tts_socket(
 
             if msg_type == "config":
                 session["voice_id"] = msg.get("voice_id")
-                session["speaker"] = msg.get("speaker")
-                session["speaker_wav_path"] = msg.get("speaker_wav_path")
                 session["language"] = msg.get("language") or session["language"]
                 session["speed"] = float(msg.get("speed") or session["speed"])
                 await websocket.send_json({"type": "config_ack", "session": session})
@@ -142,16 +127,10 @@ async def stream_tts_socket(
             language = msg.get("language") or session["language"]
             speed = float(msg.get("speed") or session["speed"])
             voice_id = msg.get("voice_id") if "voice_id" in msg else session["voice_id"]
-            speaker = msg.get("speaker") if "speaker" in msg else session["speaker"]
-            speaker_wav_path = (
-                msg.get("speaker_wav_path") if "speaker_wav_path" in msg else session["speaker_wav_path"]
-            )
 
             try:
-                resolved_speaker, resolved_speaker_wav_path = tts_service.prepare_stream_voice(
+                resolved_speaker_wav_path = tts_service.prepare_stream_voice(
                     voice_id=voice_id,
-                    speaker=speaker,
-                    speaker_wav_path=speaker_wav_path,
                 )
             except FileNotFoundError as exc:
                 await websocket.send_json({"type": "error", "detail": str(exc), "code": 404})
@@ -175,7 +154,6 @@ async def stream_tts_socket(
                         text=chunk,
                         language=language,
                         speed=speed,
-                        speaker=resolved_speaker,
                         speaker_wav_path=resolved_speaker_wav_path,
                     )
                 except TimeoutError as exc:
