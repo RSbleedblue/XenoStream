@@ -11,3 +11,4 @@ networkx==2.8.8
 transformers>=4.33.0,<5
 tokenizers==0.19.1
 soundfile==0.13.1
+faster-whisper==1.1.1

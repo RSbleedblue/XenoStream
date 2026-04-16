@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     preload_model: bool = True
     default_speaker_wav_path: str | None = None
 
+    stt_model_size: str = "base"
+    stt_device: str = "cpu"
+    stt_compute_type: str = "int8"
+    preload_stt_model: bool = True
+
     output_dir: Path = Path("outputs")
     voices_dir: Path = Path("voices")
 

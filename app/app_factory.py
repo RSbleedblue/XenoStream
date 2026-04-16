@@ -3,10 +3,12 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 
 from app.api.routes.health import router as health_router
+from app.api.routes.sts import router as sts_router
 from app.api.routes.tts import router as tts_router
 from app.api.routes.voices import router as voices_router
 from app.core.settings import get_settings
 from app.services.engine import XTTSEngine
+from app.services.stt_engine import STTEngine
 from app.services.tts_service import TTSService
 from app.services.voice_store import VoiceStore
 
@@ -14,6 +16,7 @@ from app.services.voice_store import VoiceStore
 def create_app() -> FastAPI:
     settings = get_settings()
     engine = XTTSEngine(settings=settings)
+    stt_engine = STTEngine(settings=settings)
     voice_store = VoiceStore(settings.voices_dir)
     tts_service = TTSService(
         engine=engine,
@@ -27,13 +30,17 @@ def create_app() -> FastAPI:
     async def lifespan(_: FastAPI):
         if settings.preload_model:
             engine.load()
+        if settings.preload_stt_model:
+            stt_engine.load()
         yield
 
     app = FastAPI(title=settings.app_name, version="1.0.0", lifespan=lifespan)
     app.state.settings = settings
     app.state.tts_service = tts_service
+    app.state.stt_engine = stt_engine
 
     app.include_router(health_router)
     app.include_router(voices_router)
     app.include_router(tts_router)
+    app.include_router(sts_router)
     return app
