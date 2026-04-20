@@ -14,22 +14,41 @@ router = APIRouter(prefix="/v1", tags=["voices"], dependencies=[Depends(verify_a
 async def upload_voice(
     voice_id: str = Form(...),
     file: UploadFile = File(...),
+    title: str | None = Form(default=None),
+    tag: str | None = Form(default=None),
     tts_service: TTSService = Depends(get_tts_service),
 ) -> VoiceProfileResponse:
     content = await file.read()
     extension = Path(file.filename).suffix if file.filename else ".wav"
     try:
-        voice_id, file_path = tts_service.upload_voice(
-            voice_id=voice_id, extension=extension, content=content
+        profile = tts_service.upload_voice(
+            voice_id=voice_id,
+            extension=extension,
+            content=content,
+            title=title,
+            tag=tag,
         )
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=str(exc)) from exc
-    return VoiceProfileResponse(voice_id=voice_id, file_path=str(file_path))
+    return VoiceProfileResponse(
+        voice_id=profile.voice_id,
+        file_path=str(profile.file_path),
+        title=profile.title,
+        tag=profile.tag,
+    )
 
 
 @router.get("/voices", response_model=VoiceProfilesResponse)
 def list_voices(tts_service: TTSService = Depends(get_tts_service)) -> VoiceProfilesResponse:
-    voices = [VoiceProfileResponse(voice_id=v[0], file_path=str(v[1])) for v in tts_service.list_voices()]
+    voices = [
+        VoiceProfileResponse(
+            voice_id=v.voice_id,
+            file_path=str(v.file_path),
+            title=v.title,
+            tag=v.tag,
+        )
+        for v in tts_service.list_voices()
+    ]
     return VoiceProfilesResponse(voices=voices)
 
 
