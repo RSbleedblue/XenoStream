@@ -1,0 +1,16 @@
+{
+  "display_name": "Long recording B (max length)",
+  "details": "Largest file in the set—best when you have room for a longer sample.",
+  "tags": [
+    "xenostream",
+    "local",
+    "imported",
+    "backfill-2026-04",
+    "length-long"
+  ],
+  "metadata": {
+    "import_batch": "backfill-2026-04",
+    "approx_size_class": "longest",
+    "format": "wav"
+  }
+}

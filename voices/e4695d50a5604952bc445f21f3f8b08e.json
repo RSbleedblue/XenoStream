@@ -1,0 +1,16 @@
+{
+  "display_name": "Long recording C",
+  "details": "~4.3MB — pair with other longs for variety without re-recording.",
+  "tags": [
+    "xenostream",
+    "local",
+    "imported",
+    "backfill-2026-04",
+    "length-long"
+  ],
+  "metadata": {
+    "import_batch": "backfill-2026-04",
+    "approx_size_class": "long",
+    "format": "wav"
+  }
+}

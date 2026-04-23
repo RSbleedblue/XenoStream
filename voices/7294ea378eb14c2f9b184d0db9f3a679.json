@@ -1,0 +1,16 @@
+{
+  "display_name": "Quick clip 3",
+  "details": "Short third take — A/B with clips 1 and 2 on the same device or mic setup.",
+  "tags": [
+    "xenostream",
+    "local",
+    "imported",
+    "backfill-2026-04",
+    "length-short"
+  ],
+  "metadata": {
+    "import_batch": "backfill-2026-04",
+    "approx_size_class": "short",
+    "format": "wav"
+  }
+}

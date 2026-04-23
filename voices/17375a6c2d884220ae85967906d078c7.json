@@ -1,0 +1,16 @@
+{
+  "display_name": "Narration take one",
+  "details": "Mid-length read (~2.3MB) — use for calmer, spoken passages.",
+  "tags": [
+    "xenostream",
+    "local",
+    "imported",
+    "backfill-2026-04",
+    "length-mid"
+  ],
+  "metadata": {
+    "import_batch": "backfill-2026-04",
+    "approx_size_class": "mid",
+    "format": "wav"
+  }
+}

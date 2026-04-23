@@ -1,0 +1,16 @@
+{
+  "display_name": "Long recording A",
+  "details": "~4.2MB; richer context for the model than the quick clips.",
+  "tags": [
+    "xenostream",
+    "local",
+    "imported",
+    "backfill-2026-04",
+    "length-long"
+  ],
+  "metadata": {
+    "import_batch": "backfill-2026-04",
+    "approx_size_class": "long",
+    "format": "wav"
+  }
+}

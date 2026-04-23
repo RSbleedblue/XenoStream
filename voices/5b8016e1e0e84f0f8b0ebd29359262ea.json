@@ -1,0 +1,16 @@
+{
+  "display_name": "Quick clip 2",
+  "details": "Short second reference — compare with Quick clip 1 for consistency.",
+  "tags": [
+    "xenostream",
+    "local",
+    "imported",
+    "backfill-2026-04",
+    "length-short"
+  ],
+  "metadata": {
+    "import_batch": "backfill-2026-04",
+    "approx_size_class": "short",
+    "format": "wav"
+  }
+}

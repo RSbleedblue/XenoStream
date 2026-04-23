@@ -1,0 +1,16 @@
+{
+  "display_name": "Studio sample A",
+  "details": "Larger ~4MB WAV. Good default for testing XTTS with this project.",
+  "tags": [
+    "xenostream",
+    "local",
+    "imported",
+    "backfill-2026-04",
+    "length-long"
+  ],
+  "metadata": {
+    "import_batch": "backfill-2026-04",
+    "approx_size_class": "long",
+    "format": "wav"
+  }
+}

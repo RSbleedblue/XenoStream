@@ -1,6 +1,9 @@
-from pathlib import Path
-from io import BytesIO
+from __future__ import annotations
+
 import re
+from io import BytesIO
+from pathlib import Path
+from typing import Any
 from uuid import uuid4
 
 import numpy as np
@@ -8,7 +11,7 @@ import soundfile as sf
 
 from app.api.schemas.tts import SynthesizeRequest
 from app.services.engine import XTTSEngine
-from app.services.voice_store import VoiceStore
+from app.services.voice_store import VoiceProfile, VoiceStore
 
 
 class TTSService:
@@ -57,12 +60,32 @@ class TTSService:
         self.ensure_ready()
         return self.engine.list_speakers()
 
-    def list_voices(self) -> list[tuple[str, Path]]:
-        return [(v.voice_id, v.file_path) for v in self.voice_store.list_voices()]
+    def list_voices(self) -> list[VoiceProfile]:
+        return self.voice_store.list_voices()
 
-    def upload_voice(self, filename: str, content: bytes) -> tuple[str, Path]:
-        profile = self.voice_store.create(filename=filename, content=content)
-        return profile.voice_id, profile.file_path
+    def get_voice(self, voice_id: str) -> VoiceProfile:
+        return self.voice_store.get_profile(voice_id)
+
+    def upload_voice(
+        self,
+        filename: str,
+        content: bytes,
+        display_name: str | None = None,
+        details: str | None = None,
+        tags: list[str] | None = None,
+        metadata: dict[str, str] | None = None,
+    ) -> VoiceProfile:
+        return self.voice_store.create(
+            filename=filename,
+            content=content,
+            display_name=display_name,
+            details=details,
+            tags=tags,
+            metadata=metadata,
+        )
+
+    def update_voice(self, voice_id: str, updates: dict[str, Any]) -> VoiceProfile:
+        return self.voice_store.patch_metadata(voice_id, updates)
 
     def delete_voice(self, voice_id: str) -> None:
         self.voice_store.delete(voice_id)

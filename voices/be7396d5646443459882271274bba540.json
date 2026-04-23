@@ -1,0 +1,16 @@
+{
+  "display_name": "Medium take A",
+  "details": "Between short and long — a balanced reference.",
+  "tags": [
+    "xenostream",
+    "local",
+    "imported",
+    "backfill-2026-04",
+    "length-medium"
+  ],
+  "metadata": {
+    "import_batch": "backfill-2026-04",
+    "approx_size_class": "medium",
+    "format": "wav"
+  }
+}
